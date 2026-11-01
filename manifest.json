@@ -2,7 +2,7 @@
   "name": "postgres",
   "version": "0.1.0",
   "kind": "extension",
-  "description": "Managed PostgreSQL: the server runs on our side, you only connect. Pick a shared database to start small or a dedicated instance for production.",
+  "description": "Legacy PostgreSQL maintenance for existing retained resources only. New shared and self-hosted database orders are disabled; Neon BYOK is the default for new database connections.",
   "protocolVersion": 2,
   "sdkVersion": 2,
   "dataProtocolVersion": 2,

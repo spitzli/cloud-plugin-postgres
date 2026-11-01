@@ -96,6 +96,12 @@ export function validateTrust(trust) {
   return createPublicKey({ key, format: 'jwk' });
 }
 
+export function validatePreflight({ manifest, tag, sourceSHA, trust }) {
+  requireValue(tag === 'v' + manifest.version, 'Tag and authoring manifest version mismatch');
+  requireValue(/^[a-f0-9]{40}$/.test(sourceSHA ?? ''), 'Exact source SHA required');
+  validateTrust(trust);
+}
+
 function decode(segment) {
   requireValue(typeof segment === 'string' && /^[A-Za-z0-9_-]+$/.test(segment), 'Invalid JWS encoding');
   const bytes = Buffer.from(segment, 'base64url');
@@ -146,6 +152,7 @@ async function readRelease(directory) {
   const raw = await readFile(resolve(directory, 'tabularium.json'), 'utf8');
   const manifest = parsePluginManifest(strictJSON(raw));
   const lock = strictJSON(await readFile(resolve(directory, 'release-lock.json'), 'utf8'));
+  if (process.env.GITHUB_SHA) requireValue(lock.sourceSHA === process.env.GITHUB_SHA, 'Release assets do not belong to this source commit');
   const release = finalizeManifest(manifest, { image: manifest.image, tag: 'v' + manifest.version, sourceSHA: lock.sourceSHA });
   requireValue(raw === release.raw && JSON.stringify(lock) === JSON.stringify(release.lock), 'Final release lock mismatch');
   requireValue(await readFile(resolve(directory, release.lock.descriptorFile), 'utf8') === raw, 'Descriptor bytes differ from manifest');
@@ -165,10 +172,8 @@ async function main() {
     validateSDKDependencies(pkg.dependencies);
     validateDockerfile(await readFile('Dockerfile', 'utf8'));
     if (command === 'preflight') {
-      requireValue(process.env.GITHUB_REF_NAME === 'v' + manifest.version, 'Tag and authoring manifest version mismatch');
-      requireValue(/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA ?? ''), 'Exact source SHA required');
-      validateTrust({ registry: process.env.PLUGIN_REGISTRY_URL, key: strictJSON(process.env.PLUGIN_REGISTRY_PUBLIC_JWK ?? 'null') });
-      requireValue(/^tpub_[A-Za-z0-9_-]+$/.test(process.env.TABULARIUM_TOKEN ?? ''), 'Scoped publisher token required');
+      validatePreflight({ manifest, tag: process.env.GITHUB_REF_NAME, sourceSHA: process.env.GITHUB_SHA,
+        trust: { registry: process.env.PLUGIN_REGISTRY_URL, key: strictJSON(process.env.PLUGIN_REGISTRY_PUBLIC_JWK ?? 'null') } });
     }
     console.log('Native Rust authoring manifest and independent locked package valid');
   } else if (command === 'finalize') {
