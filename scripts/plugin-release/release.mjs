@@ -2,6 +2,8 @@
 /** Native Spitzli plugin release assets and operator-pinned Tabularium verification. */
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -13,9 +15,24 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
 
 function parsePluginManifest(input, authoring = false) {
   const manifestPath = process.env.PLUGIN_VALIDATOR_MANIFEST ?? 'tools/manifest-validator/Cargo.toml';
-  const args = ['run', '--locked', '--quiet', '--manifest-path', manifestPath];
+  const args = ['run', '--locked', '--quiet', '--jobs', '3', '--manifest-path', manifestPath];
   if (authoring) args.push('--', '--authoring');
-  const result = spawnSync('cargo', args, { input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 1024 * 1024 });
+  const env = { ...process.env };
+  if (!env.CARGO_TARGET_DIR && env.RUNNER_TOOL_CACHE && existsSync('standalone.json')) {
+    const revision = strictJSON(readFileSync('standalone.json', 'utf8')).sdkRevision;
+    requireValue(/^[a-f0-9]{40}$/.test(revision), 'Pinned SDK revision required for trusted runner cache');
+    env.CARGO_TARGET_DIR = resolve(env.RUNNER_TOOL_CACHE, 'spitzli-native-validator-' + revision);
+  }
+  const result = spawnSync('cargo', args, { input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 1024 * 1024, env });
+  if (result.status !== 0) {
+    const directory = mkdtempSync(resolve(env.RUNNER_TEMP ?? tmpdir(), 'native-validator-'));
+    let diagnostics = String(result.stderr ?? '') + '\n' + String(result.error?.message ?? '');
+    for (const name of ['TABULARIUM_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'])
+      if (env[name]) diagnostics = diagnostics.replaceAll(env[name], '[REDACTED]');
+    const log = resolve(directory, 'cargo.log');
+    writeFileSync(log, diagnostics, { mode: 0o600 });
+    console.error('Private native validator diagnostics: ' + JSON.stringify(log));
+  }
   requireValue(result.status === 0, 'Authoritative native Rust Manifest::parse validation failed');
   return input;
 }
