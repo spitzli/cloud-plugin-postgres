@@ -2,7 +2,7 @@
 /** Native Spitzli plugin release assets and operator-pinned Tabularium verification. */
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -25,7 +25,9 @@ function parsePluginManifest(input, authoring = false) {
   }
   const result = spawnSync('cargo', args, { input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 1024 * 1024, env });
   if (result.status !== 0) {
-    const directory = mkdtempSync(resolve(env.RUNNER_TEMP ?? tmpdir(), 'native-validator-'));
+    const logRoot = env.RUNNER_TOOL_CACHE ? resolve(env.RUNNER_TOOL_CACHE, 'spitzli-private-logs') : env.RUNNER_TEMP ?? tmpdir();
+    mkdirSync(logRoot, { recursive: true, mode: 0o700 });
+    const directory = mkdtempSync(resolve(logRoot, 'native-validator-'));
     let diagnostics = String(result.stderr ?? '') + '\n' + String(result.error?.message ?? '');
     for (const name of ['TABULARIUM_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'])
       if (env[name]) diagnostics = diagnostics.replaceAll(env[name], '[REDACTED]');

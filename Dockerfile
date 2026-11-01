@@ -13,6 +13,7 @@ RUN --mount=type=cache,id=spitzli-native-sdk-8ed57d89c3263b050f126e4c2ba7f6cdebb
 
 FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY LICENSE COMMERCIAL-LICENSING.md NOTICE /usr/share/licenses/spitzli-cloud/
 COPY --from=build --chown=65532:65532 --chmod=0555 /out/webdock-postgres /usr/local/bin/webdock-postgres
 ENV HOME=/tmp
 USER 65532:65532
