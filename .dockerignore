@@ -1,0 +1,10 @@
+.git
+.env*
+*.pem
+*.key
+*.p12
+*.pfx
+**/target
+ui
+release
+EXPORT-PROVENANCE.json

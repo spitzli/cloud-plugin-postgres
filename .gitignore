@@ -1,0 +1,6 @@
+/target/
+**/target/
+/release/
+.env*
+*.pem
+*.key

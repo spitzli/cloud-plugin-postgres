@@ -1,0 +1,113 @@
+# Copy to .github/workflows/plugin.yml in each independent native plugin repository.
+name: Native plugin
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-plugin-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # No hosted-runner fallback: the owner requires verified EU build execution.
+    # Configure ephemeral EU runners and JSON runner labels before enabling CI.
+    runs-on: ${{ fromJSON(vars.WEBDOCK_PLUGIN_CI_RUNNER) }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Require preinstalled qualified runner tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          test "$(bun --version)" = 1.4.3
+          command -v cargo
+          command -v protoc
+          command -v buildctl
+      - name: Resolve this repository's GHCR image
+        shell: bash
+        run: printf 'IMAGE_REPOSITORY=ghcr.io/%s\n' "${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Check and test the independent container target without publishing
+        env:
+          WEBDOCK_BUILDKIT_ADDR: ${{ vars.WEBDOCK_BUILDKIT_ADDR }}
+          WEBDOCK_BUILDCTL_SHA256: ${{ vars.WEBDOCK_BUILDCTL_SHA256 }}
+        run: python3 scripts/plugin-release/build_oci.py --check < /dev/null
+      - run: bun scripts/plugin-release/release.mjs validate
+
+  release:
+    needs: check
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    runs-on: ${{ fromJSON(vars.WEBDOCK_PLUGIN_CI_RUNNER) }}
+    timeout-minutes: 30
+    # Configure protection/reviewers before pushing a release tag.
+    environment: plugin-release
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Require preinstalled Bun
+        run: test "$(bun --version)" = 1.4.3
+      - name: Require native contract, immutable bases, exact tag and configured signing trust
+        env:
+          PLUGIN_REGISTRY_URL: ${{ vars.PLUGIN_REGISTRY_URL }}
+          PLUGIN_REGISTRY_PUBLIC_JWK: ${{ vars.PLUGIN_REGISTRY_PUBLIC_JWK }}
+          TABULARIUM_TOKEN: ${{ secrets.TABULARIUM_TOKEN }}
+        run: bun scripts/plugin-release/release.mjs preflight
+      - name: Resolve this repository's GHCR image
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'IMAGE_REPOSITORY=ghcr.io/%s\n' "${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - name: Build and push through qualified rootless BuildKit
+        id: image
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBDOCK_BUILDKIT_ADDR: ${{ vars.WEBDOCK_BUILDKIT_ADDR }}
+          WEBDOCK_BUILDCTL_SHA256: ${{ vars.WEBDOCK_BUILDCTL_SHA256 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | python3 scripts/plugin-release/build_oci.py
+      - name: Write final native manifest and identical descriptor with pushed image digest
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: bun scripts/plugin-release/release.mjs finalize release
+      - name: Publish exact assets on the existing source tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          command -v gh >/dev/null
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing to overwrite immutable assets.' >&2
+            exit 1
+          fi
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" release/tabularium.json release/*-universal.json release/release-lock.json \
+            --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${prerelease[@]}"
+      - name: Submit native metadata and require registry signature with pinned operator key
+        env:
+          PLUGIN_REGISTRY_URL: ${{ vars.PLUGIN_REGISTRY_URL }}
+          PLUGIN_REGISTRY_PUBLIC_JWK: ${{ vars.PLUGIN_REGISTRY_PUBLIC_JWK }}
+          TABULARIUM_TOKEN: ${{ secrets.TABULARIUM_TOKEN }}
+        run: bun scripts/plugin-release/release.mjs publish release
+      - name: Retain public signed receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-native-release-${{ github.sha }}
+          path: release/signed-receipt.json
+          if-no-files-found: error
+          retention-days: 30
