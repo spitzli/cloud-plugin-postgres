@@ -1,3 +1,5 @@
+# Execution stays disabled until the operator records Blacksmith qualification.
+# See webdock/tools/plugin-ci/BLACKSMITH.md; runner labels alone do not select a region.
 # Copy to .github/workflows/plugin.yml in each independent native plugin repository.
 name: Native plugin
 on:
@@ -14,15 +16,50 @@ concurrency:
 
 jobs:
   check:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    # No hosted-runner fallback: the owner requires verified EU build execution.
-    # Configure the reviewed persistent trusted-maintainer EU runner labels before enabling CI.
-    runs-on: ${{ fromJSON(vars.WEBDOCK_PLUGIN_CI_RUNNER) }}
+    if: vars.WEBDOCK_BLACKSMITH_READY == 'true' && vars.WEBDOCK_BLACKSMITH_REGION != '' && vars.WEBDOCK_BLACKSMITH_BUILDER_READY == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
+    env:
+      WEBDOCK_OCI_BACKEND: blacksmith-buildx
+      WEBDOCK_BLACKSMITH_REGION: ${{ vars.WEBDOCK_BLACKSMITH_REGION }}
     steps:
+      - name: Require reviewed Blacksmith execution
+        shell: bash
+        env:
+          QUALIFIED_BLACKSMITH_REGION: ${{ vars.WEBDOCK_BLACKSMITH_REGION }}
+        run: |
+          set -euo pipefail
+          case "${BLACKSMITH_REGION:-}" in us-east|us-west|eu-central|eu-west) ;; *) echo 'Recorded Blacksmith region required' >&2; exit 1 ;; esac
+          test "$BLACKSMITH_REGION" = "$QUALIFIED_BLACKSMITH_REGION"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - name: Install native manifest validator prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends protobuf-compiler pkg-config libssl-dev
+      - name: Reject unexpected existing BuildKit before provider setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e buildkitd.toml
+          python3 scripts/plugin-release/build_oci.py --before-blacksmith-setup
+      - name: Set up the managed Blacksmith builder
+        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # reviewed v2
+        with:
+          cache-key: Dockerfile
+          nofallback: true
+          buildx-version: v0.23.0
+          platforms: linux/amd64
+      - name: Verify provider builder and keep generated configuration outside source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/plugin-release/build_oci.py --assert-blacksmith-builder
+          mv -- buildkitd.toml "$RUNNER_TEMP/blacksmith-buildkitd.toml"
       - name: Require preinstalled qualified runner tools
         shell: bash
         run: |
@@ -31,31 +68,65 @@ jobs:
           test "$(bun --version)" = 1.4.3
           command -v cargo
           command -v protoc
-          command -v buildctl
+          command -v docker
       - name: Resolve this repository's GHCR image
         shell: bash
         run: printf 'IMAGE_REPOSITORY=ghcr.io/%s\n' "${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
       - run: bun scripts/plugin-release/release.mjs validate
       - name: Check and test the independent container target without publishing
-        env:
-          WEBDOCK_BUILDKIT_ADDR: ${{ vars.WEBDOCK_BUILDKIT_ADDR }}
-          WEBDOCK_BUILDCTL_SHA256: ${{ vars.WEBDOCK_BUILDCTL_SHA256 }}
         run: python3 scripts/plugin-release/build_oci.py --check < /dev/null
 
   release:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
-    runs-on: ${{ fromJSON(vars.WEBDOCK_PLUGIN_CI_RUNNER) }}
+    if: vars.WEBDOCK_BLACKSMITH_READY == 'true' && vars.WEBDOCK_BLACKSMITH_REGION != '' && vars.WEBDOCK_BLACKSMITH_BUILDER_READY == 'true' && (startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
     # Restrict this environment to release tags using the repository's tag policy.
     environment: plugin-release
     permissions:
       contents: write
       packages: write
+    env:
+      WEBDOCK_OCI_BACKEND: blacksmith-buildx
+      WEBDOCK_BLACKSMITH_REGION: ${{ vars.WEBDOCK_BLACKSMITH_REGION }}
     steps:
+      - name: Require reviewed Blacksmith execution
+        shell: bash
+        env:
+          QUALIFIED_BLACKSMITH_REGION: ${{ vars.WEBDOCK_BLACKSMITH_REGION }}
+        run: |
+          set -euo pipefail
+          case "${BLACKSMITH_REGION:-}" in us-east|us-west|eu-central|eu-west) ;; *) echo 'Recorded Blacksmith region required' >&2; exit 1 ;; esac
+          test "$BLACKSMITH_REGION" = "$QUALIFIED_BLACKSMITH_REGION"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - name: Install native manifest validator prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends protobuf-compiler pkg-config libssl-dev
+      - name: Reject unexpected existing BuildKit before provider setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e buildkitd.toml
+          python3 scripts/plugin-release/build_oci.py --before-blacksmith-setup
+      - name: Set up the managed Blacksmith builder
+        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # reviewed v2
+        with:
+          cache-key: Dockerfile
+          nofallback: true
+          buildx-version: v0.23.0
+          platforms: linux/amd64
+      - name: Verify provider builder and keep generated configuration outside source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/plugin-release/build_oci.py --assert-blacksmith-builder
+          mv -- buildkitd.toml "$RUNNER_TEMP/blacksmith-buildkitd.toml"
       - name: Require preinstalled Bun
         run: test "$(bun --version)" = 1.4.3
       - name: Require native contract, immutable bases, exact tag and configured signing trust
@@ -68,13 +139,11 @@ jobs:
         run: |
           set -euo pipefail
           printf 'IMAGE_REPOSITORY=ghcr.io/%s\n' "${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-      - name: Build and push through qualified rootless BuildKit
+      - name: Build and push through managed Blacksmith BuildKit
         id: image
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WEBDOCK_BUILDKIT_ADDR: ${{ vars.WEBDOCK_BUILDKIT_ADDR }}
-          WEBDOCK_BUILDCTL_SHA256: ${{ vars.WEBDOCK_BUILDCTL_SHA256 }}
         run: |
           set -euo pipefail
           printf '%s' "$GH_TOKEN" | python3 scripts/plugin-release/build_oci.py
@@ -99,16 +168,31 @@ jobs:
             --verify-tag --title "$GITHUB_REF_NAME" --generate-notes "${prerelease[@]}"
   registry:
     needs: release
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
-    runs-on: ${{ fromJSON(vars.WEBDOCK_PLUGIN_CI_RUNNER) }}
+    if: vars.WEBDOCK_BLACKSMITH_READY == 'true' && vars.WEBDOCK_BLACKSMITH_REGION != '' && (startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     environment: plugin-release
     permissions:
       contents: read
     steps:
+      - name: Require reviewed Blacksmith execution
+        shell: bash
+        env:
+          QUALIFIED_BLACKSMITH_REGION: ${{ vars.WEBDOCK_BLACKSMITH_REGION }}
+        run: |
+          set -euo pipefail
+          case "${BLACKSMITH_REGION:-}" in us-east|us-west|eu-central|eu-west) ;; *) echo 'Recorded Blacksmith region required' >&2; exit 1 ;; esac
+          test "$BLACKSMITH_REGION" = "$QUALIFIED_BLACKSMITH_REGION"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.3
+      - name: Install native manifest validator prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends protobuf-compiler pkg-config libssl-dev
       - name: Download the exact immutable assets from this release tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
