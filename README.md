@@ -1,4 +1,48 @@
-# Legacy PostgreSQL maintenance plugin
+# PostgreSQL Maintenance
+
+![PostgreSQL Maintenance icon](assets/icon.svg)
+
+Maintain PostgreSQL resources that already exist and have been retained.
+
+## What you can do
+
+View existing shared or dedicated resource state, reveal or rotate credentials with permission, and explicitly delete retained resources when authorized.
+
+## Setup and access
+
+Operator-maintained legacy service. New shared and dedicated database orders are disabled. Use Neon BYOK for new database connections; installing this release does not enable ordering.
+
+## Data and security
+
+Project ownership is rechecked for every action. Stored passwords are sealed and revealed only explicitly. Existing data, encryption keys and retained resources must be preserved during maintenance.
+
+## Status and limits
+
+Legacy beta, not a new managed database offering. The screenshot shows a synthetic existing resource. TLS and verified host configuration are operator responsibilities; this plugin does not imply backup or point-in-time recovery coverage.
+
+Catalog publication does not activate the plugin, enable public signup or grant
+access to any customer resource. A new presentation release must use a new version;
+previously signed releases and their assets stay immutable.
+
+## Gallery
+
+Actual maintenance panel; synthetic existing database. New orders remain disabled; no database was created.
+
+![Retained PostgreSQL connection settings with hidden password](screenshots/retained-database.png)
+
+## Catalog source
+
+`.tabularium` is the complete catalog-refresh source. It retains the immutable
+runtime image and full protocol/access contract of the currently released
+`0.1.0` and adds the prepared presentation assets. Refresh it only from a
+reviewed immutable source commit. This does not replace signed release assets
+or activate the runtime.
+
+## Technical reference
+
+The retained implementation notes below include platform integration procedures.
+Commands referring to Core, `tools/` or `apps/console` require the [platform source
+checkout](https://github.com/spitzli/webdock); they are not standalone setup steps.
 
 This release maintains existing retained PostgreSQL resources only. New shared and self-hosted database orders are disabled; Neon BYOK is the default for new database connections. Publishing this artifact does not install it, create customers or databases, enable orders, or delete existing data. Core keeps `WEBDOCK_DATABASE_NEW_ORDERS_ENABLED=false`.
 
