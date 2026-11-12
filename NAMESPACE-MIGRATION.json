@@ -1,0 +1,57 @@
+{
+  "baseSource": "a0f2ea6ef495d4877d145198a6effe86d650aaa8",
+  "date": "2026-11-12",
+  "formatVersion": 1,
+  "licenseUnchanged": true,
+  "originalSourceSnapshotRetained": true,
+  "package": "spitzli-postgres",
+  "preservedBindingFilesSHA256": {
+    "COMMERCIAL-LICENSING.md": "5b8832f5014f16e2cf4f7ee295de32760eed20981495d184bd9f1517be256a09",
+    "EXPORT-PROVENANCE.json": "9b373ffd2b19732779b05b4f2c8668a0d977c5bae10aff968a59aaf2932d629c",
+    "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+    "manifest.json": "7a553f50e0d6a9d39c036772442dfd1af30a1eada8b3914c80651d48c61b3958"
+  },
+  "qualifiedChangedSourceSHA256": {
+    "Cargo.lock": "12a418cf413fefe5988f3b6e31b13943b77ef783341649287c62841ac012d13e",
+    "Cargo.toml": "98993bed440c5af8b807280671acb0230625aea9f81f5cee98c1e60a741cb578",
+    "Dockerfile": "3f94537e9af06abc14a03ecdb77a7883c14bedb503eaf037c8cbb9eaf550e1db",
+    "NOTICE": "4949ccd63735c148d2fd1f1423772d11938087ba0bdbcf4aad81c576bcfa09b8",
+    "README.md": "e81fdfb09d8a7d3e15bc1247c55075247af67864075798e68e5e4e590afc7b8b",
+    "scripts/plugin-release/release.mjs": "30462a348f238bc78dab840688199574ad4fc5e9b039310306d6210f4c433890",
+    "src/dedicated.rs": "426684c6e402923eb4329fedcf5b35b955a94537a3e1f1107b4addd2578bec6a",
+    "src/lib.rs": "1925f41a32c4a9f4f71739189e371782c99343d65721ae5f8caabe49d3663444",
+    "src/main.rs": "cfc8c963dacf5b188b4805862d943540f34d83723caae3e8d9dbb68fc68d2e34",
+    "src/store.rs": "530619bdb7731a0561f04e1911d8f141d6381732fd8a78ead38450395cf11d53",
+    "standalone.json": "f9726058c8238050da39c93af6a7d4e902ca3b654f1485cfb215c9227931dd6b",
+    "tests/lifecycle.rs": "3f39a9bfed162dad254e8470edb822413a20c42b653859f3882c935592f80216",
+    "tests/storage_retention.rs": "7bebb3e8652164bf2ee7b539f06bb1c5387166f814ba4e60b48d914c0502d445",
+    "tests/storage_transport.rs": "561e16916f430dcf8afaee5918d99faf3974969c9f9de8d34f59dae2e4165408",
+    "tools/manifest-validator/Cargo.lock": "ae2cb28761abf9ce99c9f5c4df246d47d61955a9919907fd222f511d13d84ba6",
+    "tools/manifest-validator/Cargo.toml": "81aa8724804a7f701f7b312c8851937369409d029071d2034dbd6f535b86df6a",
+    "tools/manifest-validator/src/main.rs": "bb5f5ab38c63e2c28aa64a329696e923aa747e62de2d058e2de734ada06e72b4",
+    "ui/index.tsx": "d01001df0a91778fb33b0d837f39fb461b38d5b2fce25fa58431d2798a616838"
+  },
+  "runtimeArtifactsReplaced": false,
+  "scope": "Rust package/import and binary namespace, host UI import namespace, paired test environment variables and exact SDK pin",
+  "sdkGit": "https://github.com/spitzli/cloud-plugin-sdk",
+  "sdkRevision": "8019f3df67dba3fed3083f22635e4725028c1b5e",
+  "sourceChecks": {
+    "allRegistryLockfilesPreserved": [
+      "Cargo.lock",
+      "tools/manifest-validator/Cargo.lock"
+    ],
+    "format": true,
+    "releaseContract": true,
+    "rustLiteralFilesChecked": 9,
+    "strictClippy": true,
+    "testsIgnored": 5,
+    "testsPassed": 4,
+    "ui": {
+      "component": "postgres",
+      "hostConsoleSource": "a9fa78a6264a64a5e3e9405a49d94da189f7638b",
+      "typecheckPassed": true
+    }
+  },
+  "version": "0.1.0",
+  "wireStoredCryptographicAndExternalResourceBindings": "retained for coordinated migration"
+}
